@@ -34,6 +34,8 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { Sparkles } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const postSchema = z.object({
   content: z.string()
@@ -49,6 +51,48 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+
+  type GenerateState = {
+    loading: boolean
+    error: string | null
+  }
+
+  const [generateState, setGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+
+  async function generateAICaption() {
+    setGenerateState({ loading: true, error: null })
+    
+    try {
+      const response = await fetch('/api/ai/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: form.getValues('content') || 'Generate a creative social media post'
+        }),
+      })
+  
+      if (!response.ok) throw new Error('Failed to generate caption')
+  
+      const data = await response.json()
+      form.setValue('content', data.caption)
+      
+      toast({
+        title: "Success",
+        description: "AI caption generated successfully",
+      })
+    } catch (error) {
+      console.error('Error generating caption:', error)
+      setGenerateState({
+        loading: false,
+        error: 'Failed to generate caption. Please try again.',
+      })
+    } finally {
+      setGenerateState(prev => ({ ...prev, loading: false }))
+    }
+  }
 
   const form = useForm<PostFormValues>({
     resolver: zodResolver(postSchema),
@@ -100,24 +144,41 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Content</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="What's on your mind?"
-                      className="min-h-[100px] resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <FormField
+      control={form.control}
+      name="content"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="flex items-center justify-between">
+            Content
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={generateAICaption}
+              disabled={generateState.loading}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {generateState.loading ? "Generating..." : "Generate with AI"}
+            </Button>
+          </FormLabel>
+          <FormControl>
+            <Textarea
+              placeholder="What's on your mind?"
+              className="min-h-[100px] resize-none"
+              {...field}
             />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+    {generateState.error && (
+      <Alert variant="destructive">
+        <AlertDescription>{generateState.error}</AlertDescription>
+      </Alert>
+    )}
             <FormField
               control={form.control}
               name="scheduledFor"
