@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { EditPost } from "./edit-post"
 
 type Post = {
   id: string
@@ -111,7 +112,11 @@ export function PostsList({ filter }: PostsListProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>Edit</DropdownMenuItem>
+                <EditPost post={post} onUpdate={fetchPosts}>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    Edit
+                  </DropdownMenuItem>
+                </EditPost>
                 <DropdownMenuItem 
                   className="text-destructive"
                   onClick={() => deletePost(post.id)}
