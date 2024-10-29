@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { EditPost } from "./edit-post"
+import Image from "next/image"
 
 type Post = {
   id: string
@@ -23,6 +24,7 @@ type Post = {
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   scheduled_for?: string
   created_at: string
+  media_urls?: string[]
 }
 
 interface PostsListProps {
@@ -127,6 +129,16 @@ export function PostsList({ filter }: PostsListProps) {
             </DropdownMenu>
           </CardHeader>
           <CardContent className="space-y-2">
+          {post.media_urls?.[0] && (
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                <Image
+                  src={post.media_urls[0]}
+                  alt="Post image"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            )}
             <p className="text-sm">{post.content}</p>
             {post.scheduled_for && (
               <p className="text-xs text-muted-foreground">

@@ -9,6 +9,8 @@ import * as z from "zod"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Calendar as CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
+import { Sparkles, Image as ImageIcon, X, Loader2 } from "lucide-react"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,8 +36,9 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Sparkles } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ImagePreview } from "./image-preview"
+import { PromptSuggestions } from "./prompt-suggestions"
 
 const postSchema = z.object({
   content: z.string()
@@ -46,20 +49,34 @@ const postSchema = z.object({
 
 type PostFormValues = z.infer<typeof postSchema>
 
+type GenerateState = {
+  loading: boolean
+  error: string | null
+}
+
 export function CreatePost({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  
+  const [generateState, setGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+
+  const [imageGenerateState, setImageGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  type GenerateState = {
-    loading: boolean
-    error: string | null
-  }
-
-  const [generateState, setGenerateState] = useState<GenerateState>({
-    loading: false,
-    error: null,
+  const form = useForm<PostFormValues>({
+    resolver: zodResolver(postSchema),
+    defaultValues: {
+      content: "",
+    },
   })
 
   async function generateAICaption() {
@@ -94,12 +111,54 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const form = useForm<PostFormValues>({
-    resolver: zodResolver(postSchema),
-    defaultValues: {
-      content: "",
-    },
-  })
+  async function generateAIImage() {
+    setImageGenerateState({ loading: true, error: null })
+    
+    try {
+      const content = form.getValues('content')
+      if (!content) {
+        throw new Error('Please enter some content first')
+      }
+
+      const prompt = `Create a high-quality social media image: ${content}`
+      console.log('Sending prompt:', prompt)
+
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate image')
+      }
+
+      const data = await response.json()
+      if (!data.imageUrl) {
+        throw new Error('No image URL in response')
+      }
+
+      setImageUrl(data.imageUrl)
+      toast({
+        title: "Success",
+        description: "Image generated successfully",
+      })
+    } catch (error: any) {
+      console.error('Error generating image:', error)
+      setImageGenerateState({
+        loading: false,
+        error: error.message || 'Failed to generate image'
+      })
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to generate image',
+        variant: "destructive",
+      })
+    } finally {
+      setImageGenerateState(prev => ({ ...prev, loading: false }))
+    }
+  }
 
   async function onSubmit(values: PostFormValues) {
     try {
@@ -113,7 +172,8 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           content: values.content,
           scheduled_for: values.scheduledFor,
           status: values.scheduledFor ? 'scheduled' : 'draft',
-          platform: 'facebook'
+          platform: 'facebook',
+          media_urls: imageUrl ? [imageUrl] : []
         })
 
       if (postError) throw postError
@@ -125,6 +185,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
 
       setOpen(false)
       form.reset()
+      setImageUrl(null)
       router.refresh()
     } catch (error) {
       console.error('Error creating post:', error)
@@ -134,6 +195,10 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       })
     }
+  }
+
+  function removeImage() {
+    setImageUrl(null)
   }
 
   return (
@@ -152,16 +217,37 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
         <FormItem>
           <FormLabel className="flex items-center justify-between">
             Content
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={generateAICaption}
-              disabled={generateState.loading}
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {generateState.loading ? "Generating..." : "Generate with AI"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateAICaption}
+                disabled={generateState.loading}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {generateState.loading ? "Generating..." : "Generate with AI"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateAIImage}
+                disabled={imageGenerateState.loading}
+              >
+                {imageGenerateState.loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    Generate Image
+                  </>
+                )}
+              </Button>
+            </div>
           </FormLabel>
           <FormControl>
             <Textarea
@@ -179,6 +265,32 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
         <AlertDescription>{generateState.error}</AlertDescription>
       </Alert>
     )}
+{!imageUrl && (
+              <PromptSuggestions
+                onSelect={(prompt) => {
+                  form.setValue('content', prompt)
+                  generateAIImage()
+                }}
+              />
+            )}
+
+            {imageUrl && (
+              <ImagePreview
+                src={imageUrl}
+                onRemove={() => setImageUrl(null)}
+              />
+            )}
+            {/* Error alerts */}
+            {generateState.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{generateState.error}</AlertDescription>
+              </Alert>
+            )}
+             {imageGenerateState.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{imageGenerateState.error}</AlertDescription>
+              </Alert>
+            )}
             <FormField
               control={form.control}
               name="scheduledFor"
