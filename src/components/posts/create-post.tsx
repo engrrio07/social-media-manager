@@ -83,28 +83,39 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     setGenerateState({ loading: true, error: null })
     
     try {
+      const content = form.getValues('content')
+      if (!content) {
+        throw new Error('Please enter some initial content or topic')
+      }
+  
       const response = await fetch('/api/ai/generate-caption', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: form.getValues('content') || 'Generate a creative social media post'
-        }),
+        body: JSON.stringify({ content })
       })
   
-      if (!response.ok) throw new Error('Failed to generate caption')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate caption')
+      }
   
       const data = await response.json()
       form.setValue('content', data.caption)
       
       toast({
         title: "Success",
-        description: "AI caption generated successfully",
+        description: "Caption generated successfully",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating caption:', error)
       setGenerateState({
         loading: false,
-        error: 'Failed to generate caption. Please try again.',
+        error: error.message || 'Failed to generate caption'
+      })
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to generate caption',
+        variant: "destructive",
       })
     } finally {
       setGenerateState(prev => ({ ...prev, loading: false }))
@@ -225,8 +236,17 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                 onClick={generateAICaption}
                 disabled={generateState.loading}
               >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {generateState.loading ? "Generating..." : "Generate with AI"}
+                {generateState.loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Caption...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Caption
+                  </>
+                )}
               </Button>
               <Button
                 type="button"

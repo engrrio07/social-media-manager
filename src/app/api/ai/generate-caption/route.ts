@@ -4,16 +4,16 @@ import { generateCaption } from "@/lib/aws-bedrock"
 
 export async function POST(req: Request) {
   try {
-    const { prompt } = await req.json()
+    const { content } = await req.json()
     
-    if (!prompt) {
+    if (!content) {
       return NextResponse.json(
-        { error: "Prompt is required" },
+        { error: "Content is required" },
         { status: 400 }
       )
     }
 
-    const caption = await generateCaption(prompt)
+    const caption = await generateCaption(content)
     
     return NextResponse.json({ caption })
   } catch (error) {

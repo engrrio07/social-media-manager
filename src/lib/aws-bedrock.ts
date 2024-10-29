@@ -10,61 +10,35 @@ const bedrock = new BedrockRuntimeClient({
   },
 })
 
-export async function generateCaption(prompt: string): Promise<string> {
+export async function generateCaption(content: string): Promise<string> {
   try {
     const input = {
-      modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      modelId: "anthropic.claude-3-sonnet",
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({
-//         prompt: `\n\nHuman: Generate a creative and engaging social media caption for the following context: ${prompt}. The caption should be engaging and include relevant hashtags.
-
-// \n\nAssistant: Let me create an engaging social media caption for that context.`,
-        max_tokens: 500,
-        temperature: 0.7,
         anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 500,
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: `\n\nHuman: Generate a creative and engaging social media caption for the following context: ${prompt}. The caption should be engaging and include relevant hashtags.
-
-\n\nAssistant: Let me create an engaging social media caption for that context.`
-              }
-            ]
+            content: `Generate an engaging social media caption for the following content: ${content}. 
+            Make it engaging, include relevant hashtags, and keep it under 280 characters.
+            Format: Caption text followed by hashtags on a new line.`
           }
-        ]
+        ],
+        temperature: 0.7,
       }),
     }
 
-    // const payload = {
-    //   anthropic_version: "bedrock-2023-05-31",
-    //   max_tokens: 1000,
-    //   messages: [
-    //     {
-    //       role: "user",
-    //       content: [{ type: "text", text: `Human: Generate a creative and engaging social media caption for the following context: ${prompt}. The caption should be engaging and include relevant hashtags. Assistant: Let me create an engaging social media caption for that context.` }],
-    //     },
-    //   ],
-    // };
-
-    // const command = new InvokeModelCommand({
-    //   contentType: "application/json",
-    //   body: JSON.stringify(payload),
-    //   modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    // });
-
     const command = new InvokeModelCommand(input)
     const response = await bedrock.send(command)
-
     const responseBody = JSON.parse(new TextDecoder().decode(response.body))
-    console.log("Response Body:", responseBody)
-    return responseBody.content[0].text;
+    
+    return responseBody.content[0].text
   } catch (error) {
     console.error('Error generating caption:', error)
-    throw new Error('Failed to generate caption')
+    throw error
   }
 }
 
