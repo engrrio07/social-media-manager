@@ -7,10 +7,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Calendar as CalendarIcon } from "lucide-react"
+import { 
+  ImageIcon, 
+  Loader2, 
+  CalendarIcon,
+  Wand2
+} from "lucide-react"
 import { format } from "date-fns"
-import { Sparkles, Image as ImageIcon, X, Loader2 } from "lucide-react"
-import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,7 +41,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ImagePreview } from "./image-preview"
-import { PromptSuggestions } from "./prompt-suggestions"
 
 const postSchema = z.object({
   content: z.string()
@@ -50,24 +52,22 @@ const postSchema = z.object({
 type PostFormValues = z.infer<typeof postSchema>
 
 type GenerateState = {
-  loading: boolean
-  error: string | null
+  loading: boolean;
+  error: string | null;
 }
 
 export function CreatePost({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  
-  const [generateState, setGenerateState] = useState<GenerateState>({
-    loading: false,
-    error: null,
-  })
-
   const [imageGenerateState, setImageGenerateState] = useState<GenerateState>({
     loading: false,
     error: null,
   })
-
+  const [captionGenerateState, setCaptionGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+  
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -80,25 +80,25 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
   })
 
   async function generateAICaption() {
-    setGenerateState({ loading: true, error: null })
+    setCaptionGenerateState({ loading: true, error: null })
     
     try {
       const content = form.getValues('content')
       if (!content) {
         throw new Error('Please enter some initial content or topic')
       }
-  
+
       const response = await fetch('/api/ai/generate-caption', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content })
       })
-  
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to generate caption')
       }
-  
+
       const data = await response.json()
       form.setValue('content', data.caption)
       
@@ -108,7 +108,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
       })
     } catch (error: any) {
       console.error('Error generating caption:', error)
-      setGenerateState({
+      setCaptionGenerateState({
         loading: false,
         error: error.message || 'Failed to generate caption'
       })
@@ -118,7 +118,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       })
     } finally {
-      setGenerateState(prev => ({ ...prev, loading: false }))
+      setCaptionGenerateState(prev => ({ ...prev, loading: false }))
     }
   }
 
@@ -132,7 +132,6 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
       }
 
       const prompt = `Create a high-quality social media image: ${content}`
-      console.log('Sending prompt:', prompt)
 
       const response = await fetch('/api/ai/generate-image', {
         method: 'POST',
@@ -198,18 +197,14 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
       form.reset()
       setImageUrl(null)
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating post:', error)
       toast({
         title: "Error",
-        description: "Failed to create post",
+        description: error.message || "Failed to create post",
         variant: "destructive",
       })
     }
-  }
-
-  function removeImage() {
-    setImageUrl(null)
   }
 
   return (
@@ -220,35 +215,35 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-    <FormField
-      control={form.control}
-      name="content"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel className="flex items-center justify-between">
-            Content
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={generateAICaption}
-                disabled={generateState.loading}
-              >
-                {generateState.loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Caption...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Caption
-                  </>
-                )}
-              </Button>
-              <Button
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="content"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center justify-between">
+                    Content
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateAICaption}
+                      disabled={captionGenerateState.loading}
+                    >
+                      {captionGenerateState.loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Writing...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Generate Caption
+                        </>
+                      )}
+                    </Button>
+                    <Button
                 type="button"
                 variant="outline"
                 size="sm"
@@ -258,41 +253,28 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                 {imageGenerateState.loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
+                    Generating Image...
                   </>
                 ) : (
                   <>
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Generate Image
-                  </>
-                )}
-              </Button>
-            </div>
-          </FormLabel>
-          <FormControl>
-            <Textarea
-              placeholder="What's on your mind?"
-              className="min-h-[100px] resize-none"
-              {...field}
+                          Generate Image
+                          </>
+                      )}
+                    </Button>
+                    </div>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="What's on your mind?"
+                      className="min-h-[100px] resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-    {generateState.error && (
-      <Alert variant="destructive">
-        <AlertDescription>{generateState.error}</AlertDescription>
-      </Alert>
-    )}
-{!imageUrl && (
-              <PromptSuggestions
-                onSelect={(prompt) => {
-                  form.setValue('content', prompt)
-                  generateAIImage()
-                }}
-              />
-            )}
 
             {imageUrl && (
               <ImagePreview
@@ -300,17 +282,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                 onRemove={() => setImageUrl(null)}
               />
             )}
-            {/* Error alerts */}
-            {generateState.error && (
-              <Alert variant="destructive">
-                <AlertDescription>{generateState.error}</AlertDescription>
-              </Alert>
-            )}
-             {imageGenerateState.error && (
-              <Alert variant="destructive">
-                <AlertDescription>{imageGenerateState.error}</AlertDescription>
-              </Alert>
-            )}
+
             <FormField
               control={form.control}
               name="scheduledFor"
@@ -349,11 +321,30 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                 </FormItem>
               )}
             />
+
+            {(imageGenerateState.error || captionGenerateState.error) && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {imageGenerateState.error || captionGenerateState.error}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button 
+                type="submit" 
+                disabled={
+                  form.formState.isSubmitting || 
+                  imageGenerateState.loading || 
+                  captionGenerateState.loading
+                }
+              >
                 {form.formState.isSubmitting ? "Creating..." : "Create Post"}
               </Button>
             </div>

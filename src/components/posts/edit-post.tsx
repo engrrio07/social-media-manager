@@ -7,7 +7,12 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Calendar as CalendarIcon } from "lucide-react"
+import { 
+  ImageIcon, 
+  Loader2, 
+  CalendarIcon,
+  Wand2
+} from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -18,14 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import {
   Popover,
   PopoverContent,
@@ -34,6 +32,19 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ImagePreview } from "./image-preview"
+
+interface EditPostProps {
+  post: {
+    id: string;
+    content: string;
+    media_urls?: string[];
+    scheduled_for?: string;
+  };
+  children: React.ReactNode;
+  onUpdate: () => void;
+}
 
 const postSchema = z.object({
   content: z.string()
@@ -44,19 +55,12 @@ const postSchema = z.object({
 
 type PostFormValues = z.infer<typeof postSchema>
 
-interface EditPostProps {
-  post: {
-    id: string
-    content: string
-    scheduled_for?: string
-    status: string
-  }
-  children: React.ReactNode
-  onUpdate: () => void
-}
-
 export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const [open, setOpen] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(post.media_urls?.[0] || null)
+  const [imageGenerateState, setImageGenerateState] = useState({ loading: false, error: null })
+  const [captionGenerateState, setCaptionGenerateState] = useState({ loading: false, error: null })
+
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -69,19 +73,111 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
     },
   })
 
+  async function generateAICaption() {
+    setCaptionGenerateState({ loading: true, error: null })
+    
+    try {
+      const content = form.getValues('content')
+      if (!content) {
+        throw new Error('Please enter some initial content or topic')
+      }
+
+      const response = await fetch('/api/ai/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate caption')
+      }
+
+      const data = await response.json()
+      form.setValue('content', data.caption)
+      
+      toast({
+        title: "Success",
+        description: "Caption generated successfully",
+      })
+    } catch (error: any) {
+      console.error('Error generating caption:', error)
+      setCaptionGenerateState({
+        loading: false,
+        error: error.message || 'Failed to generate caption'
+      })
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to generate caption',
+        variant: "destructive",
+      })
+    } finally {
+      setCaptionGenerateState(prev => ({ ...prev, loading: false }))
+    }
+  }
+
+  async function generateAIImage() {
+    setImageGenerateState({ loading: true, error: null })
+    
+    try {
+      const content = form.getValues('content')
+      if (!content) {
+        throw new Error('Please enter some content first')
+      }
+
+      const prompt = `Create a high-quality social media image: ${content}`
+
+      const response = await fetch('/api/ai/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate image')
+      }
+
+      const data = await response.json()
+      if (!data.imageUrl) {
+        throw new Error('No image URL in response')
+      }
+
+      setImageUrl(data.imageUrl)
+      toast({
+        title: "Success",
+        description: "Image generated successfully",
+      })
+    } catch (error: any) {
+      console.error('Error generating image:', error)
+      setImageGenerateState({
+        loading: false,
+        error: error.message || 'Failed to generate image'
+      })
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to generate image',
+        variant: "destructive",
+      })
+    } finally {
+      setImageGenerateState(prev => ({ ...prev, loading: false }))
+    }
+  }
+
   async function onSubmit(values: PostFormValues) {
     try {
-      const { error } = await supabase
+      const { error: postError } = await supabase
         .from('posts')
         .update({
           content: values.content,
           scheduled_for: values.scheduledFor,
           status: values.scheduledFor ? 'scheduled' : 'draft',
+          media_urls: imageUrl ? [imageUrl] : [],
           updated_at: new Date().toISOString(),
         })
         .eq('id', post.id)
 
-      if (error) throw error
+      if (postError) throw postError
 
       toast({
         title: "Success",
@@ -91,11 +187,11 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
       setOpen(false)
       onUpdate()
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating post:', error)
       toast({
         title: "Error",
-        description: "Failed to update post",
+        description: error.message || "Failed to update post",
         variant: "destructive",
       })
     }
@@ -106,7 +202,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Edit Post</DialogTitle>
+          <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -115,7 +211,49 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
               name="content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Content</FormLabel>
+                  <FormLabel className="flex items-center justify-between">
+                    Content
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateAICaption}
+                      disabled={captionGenerateState.loading}
+                    >
+                      {captionGenerateState.loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Writing...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          Generate Caption
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateAIImage}
+                disabled={imageGenerateState.loading}
+              >
+                {imageGenerateState.loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Image...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                          Generate Image
+                          </>
+                      )}
+                    </Button>
+                    </div>
+                  </FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="What's on your mind?"
@@ -127,6 +265,14 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
                 </FormItem>
               )}
             />
+
+            {imageUrl && (
+              <ImagePreview
+                src={imageUrl}
+                onRemove={() => setImageUrl(null)}
+              />
+            )}
+
             <FormField
               control={form.control}
               name="scheduledFor"
@@ -165,12 +311,31 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
                 </FormItem>
               )}
             />
+
+            {(imageGenerateState.error || captionGenerateState.error) && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {imageGenerateState.error || captionGenerateState.error}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Updating..." : "Update Post"}
+              <Button 
+                type="submit" 
+                disabled={
+                  form.formState.isSubmitting || 
+                  imageGenerateState.loading || 
+                  captionGenerateState.loading
+                }
+              >
+                {form.formState.isSubmitting ? "Creating..." : "Create Post"}
               </Button>
             </div>
           </form>

@@ -70,3 +70,18 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* src/app/globals.css */
+@layer components {
+  .split-button-group {
+    @apply inline-flex;
+  }
+  
+  .split-button-group > :first-child {
+    @apply rounded-r-none border-r-0;
+  }
+  
+  .split-button-group > :last-child {
+    @apply rounded-l-none border-l border-l-border/50;
+  }
+}

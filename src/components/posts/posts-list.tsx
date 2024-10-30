@@ -17,6 +17,17 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { EditPost } from "./edit-post"
 import Image from "next/image"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 type Post = {
   id: string
@@ -72,20 +83,21 @@ export function PostsList({ filter }: PostsListProps) {
     }
   }
 
-  async function deletePost(id: string) {
+  async function deletePost(postId: string) {
     try {
       const { error } = await supabase
         .from('posts')
         .delete()
-        .eq('id', id)
-
+        .eq('id', postId)
+  
       if (error) throw error
-
+  
       toast({
         title: "Success",
         description: "Post deleted successfully",
       })
       
+      // Refresh the posts list
       fetchPosts()
     } catch (error) {
       console.error('Error deleting post:', error)
@@ -108,25 +120,46 @@ export function PostsList({ filter }: PostsListProps) {
           <CardHeader className="flex flex-row items-start justify-between space-y-0">
             <Badge>{post.status}</Badge>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <EditPost post={post} onUpdate={fetchPosts}>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    Edit
-                  </DropdownMenuItem>
-                </EditPost>
-                <DropdownMenuItem 
-                  className="text-destructive"
-                  onClick={() => deletePost(post.id)}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" className="h-8 w-8 p-0">
+      <MoreVertical className="h-4 w-4" />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <EditPost post={post} onUpdate={fetchPosts}>
+      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+        Edit
+      </DropdownMenuItem>
+    </EditPost>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <DropdownMenuItem
+          onSelect={(e) => e.preventDefault()}
+          className="text-destructive"
+        >
+          Delete
+        </DropdownMenuItem>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete your post.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => deletePost(post.id)}
+            className="bg-destructive hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </DropdownMenuContent>
+</DropdownMenu>
           </CardHeader>
           <CardContent className="space-y-2">
           {post.media_urls?.[0] && (

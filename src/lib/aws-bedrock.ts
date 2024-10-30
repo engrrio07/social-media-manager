@@ -13,7 +13,7 @@ const bedrock = new BedrockRuntimeClient({
 export async function generateCaption(content: string): Promise<string> {
   try {
     const input = {
-      modelId: "anthropic.claude-3-sonnet",
+      modelId: "anthropic.claude-v2:1",
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({
@@ -22,12 +22,30 @@ export async function generateCaption(content: string): Promise<string> {
         messages: [
           {
             role: "user",
-            content: `Generate an engaging social media caption for the following content: ${content}. 
-            Make it engaging, include relevant hashtags, and keep it under 280 characters.
-            Format: Caption text followed by hashtags on a new line.`
+            content: `STRICT OUTPUT FORMAT - DO NOT INCLUDE ANY INTRODUCTORY TEXT:
+${content}
+
+<caption>
+[Write your creative caption here with emojis and engagement hooks]
+[Add 3-5 hashtags]
+</caption>
+
+Style guide:
+- Be bold and attention-grabbing
+- Use storytelling elements
+- Include trending emojis (2-4)
+- Ask thought-provoking questions
+- Add strong calls-to-action
+- Use power words for impact
+- Create FOMO or urgency
+- Keep tone conversational
+- Make it relatable to audience
+- Include statistics when relevant
+
+Remember: Start IMMEDIATELY with the caption text. No introductions, no explanations, no character counts.`
           }
         ],
-        temperature: 0.7,
+        temperature: 0.9,
       }),
     }
 
@@ -49,28 +67,25 @@ export async function generateImage(prompt: string): Promise<string> {
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({
-        prompt: prompt,
-        cfg_scale: 7,
-        steps: 50,
-        seed: Math.floor(Math.random() * 1000000),
-        style_preset: "photographic",
-        width: 1024,
-        height: 576,
+        prompt: prompt
       }),
     }
 
     const command = new InvokeModelCommand(input)
     const response = await bedrock.send(command)
-
     const responseBody = JSON.parse(new TextDecoder().decode(response.body))
     
-    if (!responseBody.artifacts?.[0]?.base64) {
-      throw new Error('No image generated')
+    if (!responseBody.images?.[0]) {
+      console.error('Response body:', JSON.stringify(responseBody, null, 2))
+      throw new Error('No image generated in response')
     }
 
-    return responseBody.artifacts[0].base64
+    return responseBody.images[0]
   } catch (error) {
     console.error('Error generating image:', error)
+    if (error instanceof Error) {
+      console.error('Error details:', error.message)
+    }
     throw error
   }
 }
