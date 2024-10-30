@@ -1,49 +1,95 @@
 // src/app/(dashboard)/dashboard/page.tsx
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Metadata } from "next"
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from "next/headers"
+import { DashboardMetrics } from "@/components/dashboard/metrics"
+import { RecentPosts } from "@/components/dashboard/recent-posts"
+import { UpcomingPosts } from "@/components/dashboard/upcoming-posts"
+import { QuickActions } from "@/components/dashboard/quick-actions"
+import { EngagementOverview } from "@/components/dashboard/engagement-overview"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
-export default function DashboardPage() {
+export const metadata: Metadata = {
+  title: "Dashboard | Social Media Manager",
+  description: "Overview of your social media performance",
+}
+
+export default async function DashboardPage() {
+  const cookieStore = cookies()
+  const supabase = createServerComponentClient({ 
+    cookies: () => cookieStore
+  })
+  
+  // Fetch initial data for server-side rendering
+  const { data: { user } } = await supabase.auth.getUser()
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground">
-          Overview of your social media activity
+          Welcome back! Here's an overview of your social media performance.
         </p>
       </div>
+
       <Separator />
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
+
+      {/* Quick Stats */}
+      <DashboardMetrics userId={user?.id} />
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        {/* Recent Posts */}
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>Recent Posts</CardTitle>
+            <CardDescription>
+              Your latest social media activity
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
+            <RecentPosts userId={user?.id} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
+
+        {/* Upcoming Schedule */}
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Upcoming Posts</CardTitle>
+            <CardDescription>
+              Your scheduled content
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <UpcomingPosts userId={user?.id} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Published</CardTitle>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        {/* Engagement Overview */}
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>Engagement Overview</CardTitle>
+            <CardDescription>
+              Performance trends and metrics
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <EngagementOverview userId={user?.id} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Engagement</CardTitle>
+
+        {/* Quick Actions */}
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>
+              Common tasks and shortcuts
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1.2K</div>
+            <QuickActions />
           </CardContent>
         </Card>
       </div>
