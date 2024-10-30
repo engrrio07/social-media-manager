@@ -9,12 +9,10 @@ import * as z from "zod"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { 
   ImageIcon, 
-  Loader2, 
-  CalendarIcon,
-  Wand2
+  Loader2,
+  Wand2,
+  HelpCircle
 } from "lucide-react"
-import { format } from "date-fns"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,16 +22,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ImagePreview } from "./image-preview"
+import { DateTimePicker } from "../ui/date-time-picker"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface EditPostProps {
   post: {
@@ -212,7 +211,25 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center justify-between">
-                    Content
+                  <div className="flex items-center gap-2">
+    Content
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[300px] space-y-2">
+          <p>Tips for better results:</p>
+          <ul className="list-disc pl-4 text-sm">
+            <li>Start with a clear topic or theme</li>
+            <li>Include specific details for image generation</li>
+            <li>Use the AI caption generator for engaging text</li>
+            <li>Keep your content focused and concise</li>
+          </ul>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </div>
                     <div className="flex items-center space-x-2">
                       <Button
                         type="button"
@@ -280,33 +297,11 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
                 <FormItem>
                   <FormLabel>Schedule For (Optional)</FormLabel>
                   <FormControl>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? (
-                            format(field.value, "PPP 'at' p")
-                          ) : (
-                            <span>Pick a date and time</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </FormControl>
+                    <DateTimePicker
+                      date={field.value}
+                      onSelect={field.onChange}
+        />
+      </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
