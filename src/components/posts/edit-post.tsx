@@ -11,7 +11,9 @@ import {
   ImageIcon, 
   Loader2,
   Wand2,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  Pencil
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +35,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import { Card, CardContent } from "@/components/ui/card"
 
 interface EditPostProps {
   post: {
@@ -57,6 +66,7 @@ type PostFormValues = z.infer<typeof postSchema>
 export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const [open, setOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(post.media_urls?.[0] || null)
+  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit")
   const [imageGenerateState, setImageGenerateState] = useState({ loading: false, error: null })
   const [captionGenerateState, setCaptionGenerateState] = useState({ loading: false, error: null })
 
@@ -203,138 +213,185 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
         <DialogHeader>
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-    Content
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <HelpCircle className="h-4 w-4 text-muted-foreground" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-[300px] space-y-2">
-          <p>Tips for better results:</p>
-          <ul className="list-disc pl-4 text-sm">
-            <li>Start with a clear topic or theme</li>
-            <li>Include specific details for image generation</li>
-            <li>Use the AI caption generator for engaging text</li>
-            <li>Keep your content focused and concise</li>
-          </ul>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={generateAICaption}
-                      disabled={captionGenerateState.loading}
-                    >
-                      {captionGenerateState.loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Writing...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          Generate Caption
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={generateAIImage}
-                disabled={imageGenerateState.loading}
-              >
-                {imageGenerateState.loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Image...
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                          Generate Image
-                          </>
-                      )}
-                    </Button>
-                    </div>
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="What's on your mind?"
-                      className="min-h-[100px] resize-none"
-                      {...field}
+        
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "edit" | "preview")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="edit" className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" />
+              Edit
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Preview
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="edit">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="content"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          Content
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px] space-y-2">
+                                <p>Tips for better results:</p>
+                                <ul className="list-disc pl-4 text-sm">
+                                  <li>Start with a clear topic or theme</li>
+                                  <li>Include specific details for image generation</li>
+                                  <li>Use the AI caption generator for engaging text</li>
+                                  <li>Keep your content focused and concise</li>
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={generateAICaption}
+                            disabled={captionGenerateState.loading}
+                          >
+                            {captionGenerateState.loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Writing...
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="mr-2 h-4 w-4" />
+                                Generate Caption
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={generateAIImage}
+                            disabled={imageGenerateState.loading}
+                          >
+                            {imageGenerateState.loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Generating Image...
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="mr-2 h-4 w-4" />
+                                Generate Image
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Textarea
+                            placeholder="What's on your mind?"
+                            className="min-h-[100px] resize-none pr-12"
+                            {...field}
+                          />
+                          <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                            {field.value.length}/2200
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {imageUrl && (
+                  <ImagePreview
+                    src={imageUrl}
+                    onRemove={() => setImageUrl(null)}
+                  />
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="scheduledFor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Schedule For (Optional)</FormLabel>
+                      <FormControl>
+                        <DateTimePicker
+                          date={field.value}
+                          onSelect={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {(imageGenerateState.error || captionGenerateState.error) && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      {imageGenerateState.error || captionGenerateState.error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex justify-end space-x-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={
+                      form.formState.isSubmitting || 
+                      imageGenerateState.loading || 
+                      captionGenerateState.loading
+                    }
+                  >
+                    {form.formState.isSubmitting ? "Creating..." : "Create Post"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </TabsContent>
+
+          <TabsContent value="preview">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                {imageUrl && (
+                  <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                    <img
+                      src={imageUrl}
+                      alt="Post preview"
+                      className="object-cover w-full h-full"
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {imageUrl && (
-              <ImagePreview
-                src={imageUrl}
-                onRemove={() => setImageUrl(null)}
-              />
-            )}
-
-            <FormField
-              control={form.control}
-              name="scheduledFor"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Schedule For (Optional)</FormLabel>
-                  <FormControl>
-                    <DateTimePicker
-                      date={field.value}
-                      onSelect={field.onChange}
-        />
-      </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {(imageGenerateState.error || captionGenerateState.error) && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {imageGenerateState.error || captionGenerateState.error}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex justify-end space-x-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={
-                  form.formState.isSubmitting || 
-                  imageGenerateState.loading || 
-                  captionGenerateState.loading
-                }
-              >
-                {form.formState.isSubmitting ? "Creating..." : "Create Post"}
-              </Button>
-            </div>
-          </form>
-        </Form>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <p className="text-sm whitespace-pre-wrap">
+                    {form.getValues("content")}
+                  </p>
+                  {form.getValues("scheduledFor") && (
+                    <p className="text-xs text-muted-foreground">
+                      Scheduled for: {form.getValues("scheduledFor")?.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

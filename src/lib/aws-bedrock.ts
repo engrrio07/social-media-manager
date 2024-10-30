@@ -25,10 +25,8 @@ export async function generateCaption(content: string): Promise<string> {
             content: `STRICT OUTPUT FORMAT - DO NOT INCLUDE ANY INTRODUCTORY TEXT:
 ${content}
 
-<caption>
 [Write your creative caption here with emojis and engagement hooks]
 [Add 3-5 hashtags]
-</caption>
 
 Style guide:
 - Be bold and attention-grabbing
