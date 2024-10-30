@@ -23,22 +23,36 @@ export async function generateCaption(content: string): Promise<string> {
           {
             role: "user",
             content: `STRICT OUTPUT FORMAT - DO NOT INCLUDE ANY INTRODUCTORY TEXT:
+
+First, analyze this content:
 ${content}
 
-[Write your creative caption here with emojis and engagement hooks]
-[Add 3-5 hashtags]
+Then, generate a caption following these guidelines:
 
-Style guide:
-- Be bold and attention-grabbing
-- Use storytelling elements
-- Include trending emojis (2-4)
-- Ask thought-provoking questions
-- Add strong calls-to-action
-- Use power words for impact
-- Create FOMO or urgency
-- Keep tone conversational
-- Make it relatable to audience
-- Include statistics when relevant
+If the content is about products/services (e.g., testimonials, product showcases, service outcomes):
+- Highlight customer satisfaction/success stories
+- Showcase the value proposition
+- Include subtle call-to-actions for inquiries
+- Mention product/service benefits
+- Use social proof elements
+- Add relevant industry hashtags
+
+If the content is general/other:
+- Focus on storytelling elements
+- Create emotional connections
+- Use trending topics if relevant
+- Keep it conversational and engaging
+- Add broader appeal hashtags
+
+General style requirements:
+- Use 2-4 relevant emojis
+- Include 3-5 hashtags
+- Ask engaging questions when appropriate
+- Create urgency or FOMO naturally
+- Keep tone warm and authentic
+- Include statistics or specifics when available
+- Maximum impact in first 2 lines
+- Break text into readable chunks
 
 Remember: Start IMMEDIATELY with the caption text. No introductions, no explanations, no character counts.`
           }

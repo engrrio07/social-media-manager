@@ -13,8 +13,11 @@ import {
   Wand2,
   HelpCircle,
   Eye,
-  Pencil
+  Pencil,
+  Upload,
+  X,
 } from "lucide-react"
+import { isValidImageType, formatFileSize } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -64,6 +67,11 @@ type GenerateState = {
   error: string | null;
 }
 
+type UploadedImage = {
+  url: string;
+  file: File;
+}
+
 export function CreatePost({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -76,6 +84,8 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     loading: false,
     error: null,
   })
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
   
   const router = useRouter()
   const { toast } = useToast()
@@ -179,10 +189,87 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files
+    if (!files?.length) return
+
+    setUploadError(null)
+    const newImages: UploadedImage[] = []
+
+    for (const file of Array.from(files)) {
+      try {
+        // Validate file type
+        if (!isValidImageType(file)) {
+          setUploadError('Please upload only JPEG, PNG, or WebP images')
+          continue
+        }
+
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+          setUploadError('Images must be less than 5MB')
+          continue
+        }
+
+        // Create temporary URL for preview
+        const url = URL.createObjectURL(file)
+        newImages.push({ url, file })
+
+        toast({
+          title: "Success",
+          description: `${file.name} uploaded successfully`,
+        })
+      } catch (error) {
+        console.error('Error handling image upload:', error)
+        setUploadError('Error uploading image. Please try again.')
+        toast({
+          title: "Error",
+          description: "Failed to upload image",
+          variant: "destructive",
+        })
+      }
+    }
+
+    setUploadedImages(prev => [...prev, ...newImages])
+    event.target.value = '' // Reset input
+  }
+
+  function removeUploadedImage(index: number) {
+    setUploadedImages(prev => {
+      const newImages = [...prev]
+      URL.revokeObjectURL(newImages[index].url) // Clean up URL
+      newImages.splice(index, 1)
+      return newImages
+    })
+  }
+
   async function onSubmit(values: PostFormValues) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
+
+      // Upload images to Supabase storage
+      const imageUrls: string[] = []
+
+      // Add AI generated image if exists
+      if (imageUrl) {
+        imageUrls.push(imageUrl)
+      }
+
+      // Upload user images
+      for (const image of uploadedImages) {
+        const fileName = `${Date.now()}-${image.file.name}`
+        const { data, error: uploadError } = await supabase.storage
+          .from('post-images')
+          .upload(fileName, image.file)
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('post-images')
+          .getPublicUrl(data.path)
+
+        imageUrls.push(publicUrl)
+      }
 
       const { error: postError } = await supabase
         .from('posts')
@@ -192,7 +279,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           scheduled_for: values.scheduledFor,
           status: values.scheduledFor ? 'scheduled' : 'draft',
           platform: 'facebook',
-          media_urls: imageUrl ? [imageUrl] : []
+          media_urls: imageUrls
         })
 
       if (postError) throw postError
@@ -205,6 +292,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
       setOpen(false)
       form.reset()
       setImageUrl(null)
+      setUploadedImages([])
       router.refresh()
     } catch (error: any) {
       console.error('Error creating post:', error)
@@ -219,7 +307,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
@@ -329,6 +417,61 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                   />
                 )}
 
+<div className="space-y-4">
+  <div className="flex items-center justify-between">
+    <FormLabel>Upload Images</FormLabel>
+    <Button 
+      type="button" 
+      variant="outline" 
+      size="sm"
+      onClick={() => {
+        // Programmatically click the hidden input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/jpeg,image/png,image/webp';
+        input.multiple = true;
+        input.onchange = (e) => handleImageUpload(e as any);
+        input.click();
+      }}
+    >
+      <Upload className="mr-2 h-4 w-4" />
+      Upload Images
+    </Button>
+  </div>
+
+  {uploadError && (
+    <Alert variant="destructive">
+      <AlertDescription>{uploadError}</AlertDescription>
+    </Alert>
+  )}
+
+  {uploadedImages.length > 0 && (
+    <div className="grid grid-cols-2 gap-4">
+      {uploadedImages.map((image, index) => (
+        <div key={index} className="relative">
+          <img
+            src={image.url}
+            alt={`Uploaded ${index + 1}`}
+            className="w-full h-32 object-cover rounded-lg"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background shadow-sm"
+            onClick={() => removeUploadedImage(index)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <p className="text-xs text-muted-foreground mt-1">
+            {(image.file.size / (1024 * 1024)).toFixed(2)} MB
+          </p>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
                 <FormField
                   control={form.control}
                   name="scheduledFor"
@@ -379,15 +522,67 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           <TabsContent value="preview">
             <Card>
               <CardContent className="space-y-4 pt-6">
-                {imageUrl && (
-                  <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                    <img
-                      src={imageUrl}
-                      alt="Post preview"
-                      className="object-cover w-full h-full"
-                    />
+                {/* Image Grid Display */}
+                {(imageUrl || uploadedImages.length > 0) && (
+                  <div className="aspect-square w-full relative rounded-lg overflow-hidden">
+                    {/* If we have 1 image */}
+                    {(!imageUrl && uploadedImages.length === 1) || (imageUrl && uploadedImages.length === 0) ? (
+                      <img
+                        src={imageUrl || uploadedImages[0].url}
+                        alt="Post preview"
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      // Grid layout for multiple images
+                      <div className="grid grid-cols-2 gap-1 h-full">
+                        {/* First image (always shown) */}
+                        <img
+                          src={imageUrl || uploadedImages[0].url}
+                          alt="First image"
+                          className="object-cover w-full h-full"
+                        />
+                        
+                        {/* Second image slot */}
+                        {(uploadedImages.length > 0 && imageUrl) || uploadedImages.length > 1 ? (
+                          <img
+                            src={imageUrl ? uploadedImages[0].url : uploadedImages[1].url}
+                            alt="Second image"
+                            className="object-cover w-full h-full"
+                          />
+                        ) : null}
+                        
+                        {/* Third image slot */}
+                        {uploadedImages.length > (imageUrl ? 1 : 2) && (
+                          <img
+                            src={imageUrl ? uploadedImages[1].url : uploadedImages[2].url}
+                            alt="Third image"
+                            className="object-cover w-full h-full"
+                          />
+                        )}
+                        
+                        {/* Fourth image slot or +N overlay */}
+                        {uploadedImages.length > (imageUrl ? 2 : 3) && (
+                          <div className="relative">
+                            <img
+                              src={imageUrl ? uploadedImages[2].url : uploadedImages[3].url}
+                              alt="Fourth image"
+                              className="object-cover w-full h-full"
+                            />
+                            {/* Overlay for additional images */}
+                            {uploadedImages.length > (imageUrl ? 3 : 4) && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                <span className="text-white text-lg font-medium">
+                                  +{uploadedImages.length - (imageUrl ? 3 : 4)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
+
                 <div className="space-y-2">
                   <p className="text-sm whitespace-pre-wrap">
                     {form.getValues("content")}
