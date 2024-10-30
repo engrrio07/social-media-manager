@@ -162,14 +162,72 @@ export function PostsList({ filter }: PostsListProps) {
 </DropdownMenu>
           </CardHeader>
           <CardContent className="space-y-2">
-          {post.media_urls?.[0] && (
-              <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                <Image
-                  src={post.media_urls[0]}
-                  alt="Post image"
-                  fill
-                  className="object-cover"
-                />
+            {/* Image Grid Display */}
+            {post.media_urls && post.media_urls.length > 0 && (
+              <div className="aspect-square w-full relative rounded-lg overflow-hidden">
+                {post.media_urls.length === 1 ? (
+                  <Image
+                    src={post.media_urls[0]}
+                    alt="Post image"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-1 h-full">
+                    {/* First image */}
+                    <div className="relative w-full h-full">
+                      <Image
+                        src={post.media_urls[0]}
+                        alt="First image"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    
+                    {/* Second image */}
+                    {post.media_urls.length > 1 && (
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={post.media_urls[1]}
+                          alt="Second image"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Third image */}
+                    {post.media_urls.length > 2 && (
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={post.media_urls[2]}
+                          alt="Third image"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Fourth image with overlay if more */}
+                    {post.media_urls.length > 3 && (
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={post.media_urls[3]}
+                          alt="Fourth image"
+                          fill
+                          className="object-cover"
+                        />
+                        {post.media_urls.length > 4 && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <span className="text-white text-lg font-medium">
+                              +{post.media_urls.length - 4}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <p className="text-sm">{post.content}</p>

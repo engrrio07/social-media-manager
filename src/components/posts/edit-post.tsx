@@ -66,10 +66,18 @@ const postSchema = z.object({
 
 type PostFormValues = z.infer<typeof postSchema>
 
+type ExistingImage = {
+  url: string;
+  isExisting: true;
+}
+
 type UploadedImage = {
   url: string;
   file: File;
+  isExisting?: false;
 }
+
+type ImageItem = ExistingImage | UploadedImage;
 
 export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const [open, setOpen] = useState(false)
@@ -77,7 +85,12 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit")
   const [imageGenerateState, setImageGenerateState] = useState({ loading: false, error: null })
   const [captionGenerateState, setCaptionGenerateState] = useState({ loading: false, error: null })
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [uploadedImages, setUploadedImages] = useState<ImageItem[]>(() => 
+    post.media_urls?.filter(url => url !== imageUrl).map(url => ({
+      url,
+      isExisting: true as const
+    })) || []
+  )
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const router = useRouter()
@@ -191,31 +204,46 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
     const newImages: UploadedImage[] = []
 
     for (const file of Array.from(files)) {
-      // Validate file type
-      if (!isValidImageType(file)) {
-        setUploadError('Please upload only JPEG, PNG, or WebP images')
-        continue
-      }
+      try {
+        if (!isValidImageType(file)) {
+          setUploadError('Please upload only JPEG, PNG, or WebP images')
+          continue
+        }
 
-      // Validate file size (5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
-        setUploadError('Images must be less than 5MB')
-        continue
-      }
+        if (file.size > 5 * 1024 * 1024) {
+          setUploadError('Images must be less than 5MB')
+          continue
+        }
 
-      // Create temporary URL for preview
-      const url = URL.createObjectURL(file)
-      newImages.push({ url, file })
+        const url = URL.createObjectURL(file)
+        newImages.push({ url, file })
+
+        toast({
+          title: "Success",
+          description: `${file.name} uploaded successfully`,
+        })
+      } catch (error) {
+        console.error('Error handling image upload:', error)
+        setUploadError('Error uploading image. Please try again.')
+        toast({
+          title: "Error",
+          description: "Failed to upload image",
+          variant: "destructive",
+        })
+      }
     }
 
     setUploadedImages(prev => [...prev, ...newImages])
-    event.target.value = '' // Reset input
+    event.target.value = ''
   }
 
   function removeUploadedImage(index: number) {
     setUploadedImages(prev => {
       const newImages = [...prev]
-      URL.revokeObjectURL(newImages[index].url) // Clean up URL
+      const removed = newImages[index]
+      if (!removed.isExisting) {
+        URL.revokeObjectURL(removed.url) // Clean up URL only for new uploads
+      }
       newImages.splice(index, 1)
       return newImages
     })
@@ -226,20 +254,34 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
-      // Upload images to Supabase storage
+      // Initialize imageUrls array
       const imageUrls: string[] = []
 
-      // Add AI generated image if exists
+      // Add AI generated/first image if it exists and wasn't removed
       if (imageUrl) {
-        imageUrls.push(imageUrl)
+        // Check if this is an existing image from the original post
+        const isExistingImage = post.media_urls?.includes(imageUrl)
+        if (isExistingImage) {
+          // Only add if it's an existing image that we want to keep
+          imageUrls.push(imageUrl)
+        } else if (!post.media_urls?.includes(imageUrl)) {
+          // This is a newly generated AI image
+          imageUrls.push(imageUrl)
+        }
       }
 
-      // Upload user images
-      for (const image of uploadedImages) {
-        const fileName = `${Date.now()}-${image.file.name}`
+      // Add remaining existing images that weren't removed
+      const remainingExistingImages = uploadedImages
+        .filter(img => img.isExisting)
+        .map(img => img.url)
+      imageUrls.push(...remainingExistingImages)
+
+      // Upload new images
+      for (const image of uploadedImages.filter(img => !img.isExisting)) {
+        const fileName = `${Date.now()}-${(image as UploadedImage).file.name}`
         const { data, error: uploadError } = await supabase.storage
           .from('post-images')
-          .upload(fileName, image.file)
+          .upload(fileName, (image as UploadedImage).file)
 
         if (uploadError) throw uploadError
 
@@ -250,16 +292,16 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
         imageUrls.push(publicUrl)
       }
 
-      // Update existing post instead of creating a new one
+      // Update the post
       const { error: postError } = await supabase
         .from('posts')
         .update({
           content: values.content,
           scheduled_for: values.scheduledFor,
           status: values.scheduledFor ? 'scheduled' : 'draft',
-          media_urls: imageUrls.length > 0 ? imageUrls : undefined // Only update if there are new images
+          media_urls: imageUrls
         })
-        .eq('id', post.id) // Add this condition to update the specific post
+        .eq('id', post.id)
 
       if (postError) throw postError
 
@@ -269,7 +311,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
       })
 
       setOpen(false)
-      onUpdate() // Call the onUpdate callback to refresh the posts list
+      onUpdate()
     } catch (error: any) {
       console.error('Error updating post:', error)
       toast({
@@ -393,60 +435,60 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
                   />
                 )}
 
-<div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <FormLabel>Upload Images</FormLabel>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    // Programmatically click the hidden input
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/jpeg,image/png,image/webp';
-                    input.multiple = true;
-                    input.onchange = (e) => handleImageUpload(e as any);
-                    input.click();
-                  }}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Images
-                </Button>
-              </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Upload Images</FormLabel>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        // Programmatically click the hidden input
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/jpeg,image/png,image/webp';
+                        input.multiple = true;
+                        input.onchange = (e) => handleImageUpload(e as any);
+                        input.click();
+                      }}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload Images
+                    </Button>
+                  </div>
 
-              {uploadError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{uploadError}</AlertDescription>
-                </Alert>
-              )}
+                  {uploadError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{uploadError}</AlertDescription>
+                    </Alert>
+                  )}
 
-              {uploadedImages.length > 0 && (
-                <div className="grid grid-cols-2 gap-4">
-                  {uploadedImages.map((image, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={image.url}
-                        alt={`Uploaded ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background shadow-sm"
-                        onClick={() => removeUploadedImage(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatFileSize(image.file.size)}
-                      </p>
+                  {uploadedImages.length > 0 && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {uploadedImages.map((image, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={image.url}
+                            alt={`Uploaded ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background shadow-sm"
+                            onClick={() => removeUploadedImage(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {image.isExisting ? 'Existing image' : formatFileSize((image as UploadedImage).file.size)}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
 
                 <FormField
                   control={form.control}
