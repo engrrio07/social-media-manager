@@ -4,13 +4,16 @@ import { ScheduleCalendar } from "@/components/schedule/schedule-calendar"
 import { ScheduleList } from "@/components/schedule/schedule-list"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import { requireAuth } from "@/lib/supabase/auth"
 
 export const metadata: Metadata = {
   title: "Schedule | Social Media Manager",
   description: "Manage your scheduled posts",
 }
 
-export default function SchedulePage() {
+export default async function SchedulePage() {
+  await requireAuth()
+
   return (
     <div className="space-y-6">
       <div>

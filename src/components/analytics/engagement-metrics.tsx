@@ -39,26 +39,26 @@ const engagementSchema = z.object({
 
 type EngagementData = z.infer<typeof engagementSchema>
 
-export function EngagementMetrics() {
+interface EngagementMetricsProps {
+  userId?: string
+}
+
+export function EngagementMetrics({ userId }: EngagementMetricsProps) {
   const [engagementData, setEngagementData] = useState<EngagementData[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchEngagementData()
-  }, [])
+    if (userId) {
+      fetchEngagementData()
+    }
+  }, [userId])
 
   async function fetchEngagementData() {
+    if (!userId) return
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not found')
-
-      // Get last 7 days of engagement data
-      const endDate = new Date()
-      const startDate = new Date()
-      startDate.setDate(endDate.getDate() - 7)
-
       const { data, error } = await supabase
         .from('post_analytics')
         .select(`
@@ -68,6 +68,7 @@ export function EngagementMetrics() {
           shares,
           engagement_rate
         `)
+        .eq('user_id', userId)
         .gte('date', startDate.toISOString())
         .lte('date', endDate.toISOString())
         .order('date', { ascending: true })

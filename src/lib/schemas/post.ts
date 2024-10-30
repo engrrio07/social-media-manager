@@ -36,19 +36,21 @@ export const generateStateSchema = z.object({
 export const postSchema = z.object({
   id: z.string(),
   content: z.string(),
-  media_urls: z.array(z.string()).optional().default([]),
-  status: z.enum(['draft', 'scheduled', 'published']),
+  media_urls: z.array(z.string()).nullable().default([]),
+  status: z.enum(['draft', 'scheduled', 'published', 'failed']),
   scheduled_for: z.string().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  platform: z.string().optional(),
+  created_at: z.string(),
+  updated_at: z.string().optional(),
+  user_id: z.string(),
   analytics: z.object({
     likes: z.number(),
     comments: z.number(),
     shares: z.number(),
-    views: z.number(),
-    reach: z.number(),
+    impressions: z.number(),
+    clicks: z.number(),
     engagement_rate: z.number()
-  }).optional().nullable()
+  }).nullable().optional()
 })
 
 // Type exports

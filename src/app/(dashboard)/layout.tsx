@@ -2,12 +2,29 @@
 import { DashboardNav } from "@/components/dashboard/nav"
 import { UserNav } from "@/components/dashboard/user-nav"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { redirect } from 'next/navigation'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Get the cookie store first
+  const cookieStore = cookies()
+    
+  // Create the Supabase client with async cookies
+  const supabase = createServerComponentClient({
+    cookies: () => cookieStore
+  })
+
+  // Await the session check
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    redirect('/auth')
+  }
   return (
       <div className="min-h-screen flex">
         {/* Sidebar */}

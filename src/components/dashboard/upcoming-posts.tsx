@@ -38,7 +38,9 @@ export function UpcomingPosts({ userId }: UpcomingPostsProps) {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchUpcomingPosts()
+    if (userId) {
+      fetchUpcomingPosts()
+    }
   }, [userId])
 
   async function fetchUpcomingPosts() {
