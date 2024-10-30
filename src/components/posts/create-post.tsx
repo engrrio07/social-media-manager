@@ -52,25 +52,12 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { ImagePreview } from "./image-preview"
 import { DateTimePicker } from "../ui/date-time-picker"
-
-const postSchema = z.object({
-  content: z.string()
-    .min(1, "Content is required")
-    .max(2200, "Content must be less than 2200 characters"),
-  scheduledFor: z.date().optional(),
-})
-
-type PostFormValues = z.infer<typeof postSchema>
-
-type GenerateState = {
-  loading: boolean;
-  error: string | null;
-}
-
-type UploadedImage = {
-  url: string;
-  file: File;
-}
+import { 
+  postContentSchema, 
+  type PostContent, 
+  type GenerateState,
+  type MediaItem,
+} from "@/lib/schemas/post"
 
 export function CreatePost({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -84,15 +71,15 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     loading: false,
     error: null,
   })
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [uploadedImages, setUploadedImages] = useState<MediaItem[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  const form = useForm<PostFormValues>({
-    resolver: zodResolver(postSchema),
+  const form = useForm<PostContent>({
+    resolver: zodResolver(postContentSchema),
     defaultValues: {
       content: "",
     },
@@ -194,25 +181,22 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     if (!files?.length) return
 
     setUploadError(null)
-    const newImages: UploadedImage[] = []
+    const newImages: MediaItem[] = []
 
     for (const file of Array.from(files)) {
       try {
-        // Validate file type
         if (!isValidImageType(file)) {
           setUploadError('Please upload only JPEG, PNG, or WebP images')
           continue
         }
 
-        // Validate file size (5MB limit)
         if (file.size > 5 * 1024 * 1024) {
           setUploadError('Images must be less than 5MB')
           continue
         }
 
-        // Create temporary URL for preview
         const url = URL.createObjectURL(file)
-        newImages.push({ url, file })
+        newImages.push({ url, file, isExisting: false })
 
         toast({
           title: "Success",
@@ -230,33 +214,32 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
     }
 
     setUploadedImages(prev => [...prev, ...newImages])
-    event.target.value = '' // Reset input
+    event.target.value = ''
   }
 
   function removeUploadedImage(index: number) {
     setUploadedImages(prev => {
       const newImages = [...prev]
-      URL.revokeObjectURL(newImages[index].url) // Clean up URL
+      URL.revokeObjectURL(newImages[index].url)
       newImages.splice(index, 1)
       return newImages
     })
   }
 
-  async function onSubmit(values: PostFormValues) {
+  async function onSubmit(values: PostContent) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
-      // Upload images to Supabase storage
       const imageUrls: string[] = []
 
-      // Add AI generated image if exists
       if (imageUrl) {
         imageUrls.push(imageUrl)
       }
 
-      // Upload user images
       for (const image of uploadedImages) {
+        if (!image.file) continue
+
         const fileName = `${Date.now()}-${image.file.name}`
         const { data, error: uploadError } = await supabase.storage
           .from('post-images')
@@ -271,16 +254,18 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
         imageUrls.push(publicUrl)
       }
 
-      const { error: postError } = await supabase
-        .from('posts')
-        .insert({
-          user_id: user?.id,
-          content: values.content,
-          scheduled_for: values.scheduledFor,
-          status: values.scheduledFor ? 'scheduled' : 'draft',
-          platform: 'facebook',
-          media_urls: imageUrls
-        })
+      const { data: post, error: postError } = await supabase
+      .from('posts')
+      .insert({
+        user_id: user?.id,
+        content: values.content,
+        scheduled_for: values.scheduledFor,
+        status: values.scheduledFor ? 'scheduled' : 'draft',
+        platform: 'facebook',
+        media_urls: imageUrls
+      })
+      .select()
+      .single()
 
       if (postError) throw postError
 
@@ -425,7 +410,6 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
       variant="outline" 
       size="sm"
       onClick={() => {
-        // Programmatically click the hidden input
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/jpeg,image/png,image/webp';
@@ -464,7 +448,7 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
             <X className="h-4 w-4" />
           </Button>
           <p className="text-xs text-muted-foreground mt-1">
-            {(image.file.size / (1024 * 1024)).toFixed(2)} MB
+            {image.file ? `${(image.file.size / (1024 * 1024)).toFixed(2)} MB` : '0 B'}
           </p>
         </div>
       ))}
@@ -522,10 +506,8 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
           <TabsContent value="preview">
             <Card>
               <CardContent className="space-y-4 pt-6">
-                {/* Image Grid Display */}
                 {(imageUrl || uploadedImages.length > 0) && (
                   <div className="aspect-square w-full relative rounded-lg overflow-hidden">
-                    {/* If we have 1 image */}
                     {(!imageUrl && uploadedImages.length === 1) || (imageUrl && uploadedImages.length === 0) ? (
                       <img
                         src={imageUrl || uploadedImages[0].url}
@@ -533,16 +515,13 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      // Grid layout for multiple images
                       <div className="grid grid-cols-2 gap-1 h-full">
-                        {/* First image (always shown) */}
                         <img
                           src={imageUrl || uploadedImages[0].url}
                           alt="First image"
                           className="object-cover w-full h-full"
                         />
                         
-                        {/* Second image slot */}
                         {(uploadedImages.length > 0 && imageUrl) || uploadedImages.length > 1 ? (
                           <img
                             src={imageUrl ? uploadedImages[0].url : uploadedImages[1].url}
@@ -551,7 +530,6 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                           />
                         ) : null}
                         
-                        {/* Third image slot */}
                         {uploadedImages.length > (imageUrl ? 1 : 2) && (
                           <img
                             src={imageUrl ? uploadedImages[1].url : uploadedImages[2].url}
@@ -560,7 +538,6 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                           />
                         )}
                         
-                        {/* Fourth image slot or +N overlay */}
                         {uploadedImages.length > (imageUrl ? 2 : 3) && (
                           <div className="relative">
                             <img
@@ -568,7 +545,6 @@ export function CreatePost({ children }: { children: React.ReactNode }) {
                               alt="Fourth image"
                               className="object-cover w-full h-full"
                             />
-                            {/* Overlay for additional images */}
                             {uploadedImages.length > (imageUrl ? 3 : 4) && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                                 <span className="text-white text-lg font-medium">

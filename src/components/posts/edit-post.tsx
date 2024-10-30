@@ -45,50 +45,35 @@ import {
 } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { isValidImageType, formatFileSize } from "@/lib/utils"
-
+import { 
+  postContentSchema, 
+  type PostContent, 
+  type GenerateState,
+  type MediaItem,
+  type Post,
+} from "@/lib/schemas/post"
 interface EditPostProps {
-  post: {
-    id: string;
-    content: string;
-    media_urls?: string[];
-    scheduled_for?: string;
-  };
+  post: Post;
   children: React.ReactNode;
   onUpdate: () => void;
 }
-
-const postSchema = z.object({
-  content: z.string()
-    .min(1, "Content is required")
-    .max(2200, "Content must be less than 2200 characters"),
-  scheduledFor: z.date().optional(),
-})
-
-type PostFormValues = z.infer<typeof postSchema>
-
-type ExistingImage = {
-  url: string;
-  isExisting: true;
-}
-
-type UploadedImage = {
-  url: string;
-  file: File;
-  isExisting?: false;
-}
-
-type ImageItem = ExistingImage | UploadedImage;
 
 export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const [open, setOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(post.media_urls?.[0] || null)
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit")
-  const [imageGenerateState, setImageGenerateState] = useState({ loading: false, error: null })
-  const [captionGenerateState, setCaptionGenerateState] = useState({ loading: false, error: null })
-  const [uploadedImages, setUploadedImages] = useState<ImageItem[]>(() => 
+  const [imageGenerateState, setImageGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+  const [captionGenerateState, setCaptionGenerateState] = useState<GenerateState>({
+    loading: false,
+    error: null,
+  })
+  const [uploadedImages, setUploadedImages] = useState<MediaItem[]>(() => 
     post.media_urls?.filter(url => url !== imageUrl).map(url => ({
       url,
-      isExisting: true as const
+      isExisting: true,
     })) || []
   )
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -97,8 +82,8 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  const form = useForm<PostFormValues>({
-    resolver: zodResolver(postSchema),
+  const form = useForm<PostContent>({
+    resolver: zodResolver(postContentSchema),
     defaultValues: {
       content: post.content,
       scheduledFor: post.scheduled_for ? new Date(post.scheduled_for) : undefined,
@@ -201,7 +186,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
     if (!files?.length) return
 
     setUploadError(null)
-    const newImages: UploadedImage[] = []
+    const newImages: MediaItem[] = []
 
     for (const file of Array.from(files)) {
       try {
@@ -216,7 +201,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
         }
 
         const url = URL.createObjectURL(file)
-        newImages.push({ url, file })
+        newImages.push({ url, file, isExisting: false })
 
         toast({
           title: "Success",
@@ -249,7 +234,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
     })
   }
 
-  async function onSubmit(values: PostFormValues) {
+  async function onSubmit(values: PostContent) {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
@@ -277,19 +262,21 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
       imageUrls.push(...remainingExistingImages)
 
       // Upload new images
-      for (const image of uploadedImages.filter(img => !img.isExisting)) {
-        const fileName = `${Date.now()}-${(image as UploadedImage).file.name}`
-        const { data, error: uploadError } = await supabase.storage
-          .from('post-images')
-          .upload(fileName, (image as UploadedImage).file)
+      for (const image of uploadedImages.filter(img => !img.isExisting && img.file)) {
+        if (image.file) {
+          const fileName = `${Date.now()}-${image.file.name}`
+          const { data, error: uploadError } = await supabase.storage
+            .from('post-images')
+            .upload(fileName, image.file)
 
-        if (uploadError) throw uploadError
+          if (uploadError) throw uploadError
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('post-images')
-          .getPublicUrl(data.path)
+          const { data: { publicUrl } } = supabase.storage
+            .from('post-images')
+            .getPublicUrl(data.path)
 
-        imageUrls.push(publicUrl)
+          imageUrls.push(publicUrl)
+        }
       }
 
       // Update the post
@@ -482,7 +469,7 @@ export function EditPost({ post, children, onUpdate }: EditPostProps) {
                             <X className="h-4 w-4" />
                           </Button>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {image.isExisting ? 'Existing image' : formatFileSize((image as UploadedImage).file.size)}
+                            {image.isExisting ? 'Existing image' : image.file ? formatFileSize(image.file.size) : '0 B'}
                           </p>
                         </div>
                       ))}

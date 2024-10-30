@@ -28,15 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
-type Post = {
-  id: string
-  content: string
-  status: 'draft' | 'scheduled' | 'published' | 'failed'
-  scheduled_for?: string
-  created_at: string
-  media_urls?: string[]
-}
+import { postSchema, type Post } from "@/lib/schemas/post"
 
 interface PostsListProps {
   filter: 'all' | 'draft' | 'scheduled' | 'published'
@@ -50,34 +42,60 @@ export function PostsList({ filter }: PostsListProps) {
 
   useEffect(() => {
     fetchPosts()
-  }, [filter])
+  }, [filter, supabase])
 
   async function fetchPosts() {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-
-      let query = supabase
+      setLoading(true)
+      
+      const { data: posts, error } = await supabase
         .from('posts')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq(filter !== 'all' ? 'status' : '', filter !== 'all' ? filter : '')
         .order('created_at', { ascending: false })
 
-      if (filter !== 'all') {
-        query = query.eq('status', filter)
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      if (!posts) {
+        setPosts([])
+        return
+      }
 
-      setPosts(data || [])
+      // Transform the data to match the schema
+      const transformedPosts = posts.map(post => ({
+        ...post,
+        // Ensure dates are in ISO format
+        created_at: new Date(post.created_at).toISOString(),
+        updated_at: new Date(post.updated_at).toISOString(),
+        // Handle nullable fields
+        scheduled_for: post.scheduled_for ? new Date(post.scheduled_for).toISOString() : null,
+        media_urls: post.media_urls || [],
+        // Set default analytics if not present
+        analytics: null
+      }))
+
+      // Validate the posts
+      const validatedPosts = transformedPosts.map(post => {
+        try {
+          return postSchema.parse(post)
+        } catch (e) {
+          console.error('Invalid post data:', post, e)
+          return null
+        }
+      }).filter((post): post is Post => post !== null)
+
+      setPosts(validatedPosts)
     } catch (error) {
       console.error('Error fetching posts:', error)
       toast({
         title: "Error",
-        description: "Failed to load posts",
+        description: error instanceof Error ? error.message : "Failed to fetch posts",
         variant: "destructive",
       })
+      setPosts([])
     } finally {
       setLoading(false)
     }
