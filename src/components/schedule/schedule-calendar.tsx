@@ -61,49 +61,52 @@ export function ScheduleCalendar() {
   }, [date, posts])
 
   return (
-    <div className="grid gap-4 md:grid-cols-[1fr_300px]">
+    <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardContent className="p-6">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={setDate}
-            className="rounded-md border"
-          />
+        <CardHeader>
+          <CardTitle>Calendar</CardTitle>
+          <CardDescription>Select a date to view scheduled posts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={setDate}
+            />
+          </div>
         </CardContent>
       </Card>
       
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {date ? format(date, 'MMMM d, yyyy') : 'Select a date'}
-            </CardTitle>
-            <CardDescription>
-              {selectedDayPosts.length} posts scheduled
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {selectedDayPosts.map((post) => (
-              <Card key={post.id}>
-                <CardContent className="p-4">
-                  <p className="text-sm font-medium">
-                    {format(new Date(post.scheduled_for), 'p')}
-                  </p>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                    {post.content}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-            {selectedDayPosts.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No posts scheduled for this day
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="h-fit md:sticky md:top-4">
+        <CardHeader>
+          <CardTitle>
+            {date ? format(date, 'MMMM d, yyyy') : 'Select a date'}
+          </CardTitle>
+          <CardDescription>
+            {selectedDayPosts.length} posts scheduled
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {selectedDayPosts.map((post) => (
+            <Card key={post.id}>
+              <CardContent className="p-4">
+                <p className="text-sm font-medium">
+                  {format(new Date(post.scheduled_for), 'p')}
+                </p>
+                <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                  {post.content}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+          {selectedDayPosts.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No posts scheduled for this day
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
