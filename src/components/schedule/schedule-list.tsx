@@ -151,12 +151,14 @@ export function ScheduleList() {
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Select Date</label>
-                        <Calendar
-                          mode="single"
+                        <div className="flex justify-center">
+                          <Calendar
+                            mode="single"
                           selected={selectedDate}
                           onSelect={setSelectedDate}
-                          className="rounded-md border"
-                        />
+                            className="rounded-md border"
+                            />
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Select Time</label>
