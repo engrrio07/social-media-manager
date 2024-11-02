@@ -38,7 +38,10 @@ export function PostPerformance() {
 
   async function fetchTopPosts() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      setLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) throw new Error('Authentication error')
       if (!user) throw new Error('User not found')
 
       const { data, error } = await supabase
@@ -61,16 +64,34 @@ export function PostPerformance() {
 
       if (error) throw error
 
+      // Handle empty data case
+      if (!data || data.length === 0) {
+        setPosts([])
+        return
+      }
+
+      // Transform data to match schema
+      const transformedData = data.map(post => ({
+        ...post,
+        analytics: post.analytics?.[0] || {
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          engagement_rate: 0
+        }
+      }))
+
       // Validate and transform data
-      const validatedPosts = z.array(postAnalyticsSchema).parse(data)
+      const validatedPosts = z.array(postAnalyticsSchema).parse(transformedData)
       setPosts(validatedPosts)
     } catch (error) {
       console.error('Error fetching post analytics:', error)
       toast({
-        title: "Error",
-        description: "Failed to fetch post analytics",
+        title: "Error fetching posts",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
+      setPosts([]) // Set empty array on error
     } finally {
       setLoading(false)
     }

@@ -23,49 +23,66 @@ export function MetricCard({ title, metric, description }: MetricCardProps) {
 
   useEffect(() => {
     async function fetchMetric() {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      // Fetch current period data
-      const { data: currentData } = await supabase
-        .from('post_analytics')
-        .select('*')
-        .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .order('date', { ascending: false })
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError) throw new Error('Authentication error')
+        if (!user) throw new Error('User not found')
+        
+        // Fetch current period data
+        const { data: currentData, error } = await supabase
+          .from('post_analytics')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+          .order('date', { ascending: false })
 
-      // Calculate metric value
-      let metricValue = 0
-      if (currentData) {
-        switch (metric) {
-          case 'posts':
-            metricValue = currentData.length
-            break
-          case 'engagement':
-            metricValue = currentData.reduce((sum, post) => 
-              sum + post.likes + post.comments + post.shares, 0)
-            break
-          case 'reach':
-            metricValue = currentData.reduce((sum, post) => 
-              sum + post.reach, 0) / (currentData.length || 1)
-            break
-          case 'engagement_rate':
-            const totalEngagement = currentData.reduce((sum, post) => 
-              sum + post.likes + post.comments + post.shares, 0)
-            const totalReach = currentData.reduce((sum, post) => 
-              sum + post.reach, 0)
-            metricValue = (totalEngagement / (totalReach || 1)) * 100
-            break
+        if (error) throw error
+
+        // Handle empty data case
+        if (!currentData || currentData.length === 0) {
+          setValue(0)
+          setTrend({ value: 0, type: 'positive' })
+          return
         }
-      }
 
-      setValue(metricValue)
-      
-      // Calculate trend
-      // ... similar calculation for previous period
-      // This is a placeholder trend calculation
-      setTrend({
-        value: Math.random() * 10,
-        type: Math.random() > 0.5 ? 'positive' : 'negative'
-      })
+        // Calculate metric value
+        let metricValue = 0
+        if (currentData) {
+          switch (metric) {
+            case 'posts':
+              metricValue = currentData.length
+              break
+            case 'engagement':
+              metricValue = currentData.reduce((sum, post) => 
+                sum + (post.likes || 0) + (post.comments || 0) + (post.shares || 0), 0)
+              break
+            case 'reach':
+              metricValue = currentData.reduce((sum, post) => 
+                sum + (post.reach || 0), 0) / (currentData.length || 1)
+              break
+            case 'engagement_rate':
+              const totalEngagement = currentData.reduce((sum, post) => 
+                sum + (post.likes || 0) + (post.comments || 0) + (post.shares || 0), 0)
+              const totalReach = currentData.reduce((sum, post) => 
+                sum + (post.reach || 0), 0)
+              metricValue = (totalEngagement / (totalReach || 1)) * 100
+              break
+          }
+        }
+
+        setValue(metricValue)
+        
+        // Set a default trend for now
+        setTrend({
+          value: 0,
+          type: 'positive'
+        })
+      } catch (error) {
+        console.error('Error fetching metric:', error)
+        setValue(0)
+        setTrend({ value: 0, type: 'positive' })
+      }
     }
 
     fetchMetric()

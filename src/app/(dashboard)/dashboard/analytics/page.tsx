@@ -4,7 +4,8 @@ import { AnalyticsOverview } from "@/components/analytics/overview"
 import { PostPerformance } from "@/components/analytics/post-performance"
 import { EngagementMetrics } from "@/components/analytics/engagement-metrics"
 import { Separator } from "@/components/ui/separator"
-import { requireAuth } from "@/lib/supabase/auth"
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export const metadata: Metadata = {
   title: "Analytics | Social Media Manager",
@@ -12,7 +13,15 @@ export const metadata: Metadata = {
 }
 
 export default async function AnalyticsPage() {
-  await requireAuth()
+  const cookieStore = cookies()
+  const supabase = createServerComponentClient({ cookies: () => cookieStore })
+  
+  // Check auth
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error || !user) {
+    throw new Error('Unauthorized')
+  }
 
   return (
     <div className="space-y-6">
@@ -27,7 +36,7 @@ export default async function AnalyticsPage() {
 
       <AnalyticsOverview />
       <PostPerformance />
-      <EngagementMetrics />
+      <EngagementMetrics userId={user.id} />
     </div>
   )
 }

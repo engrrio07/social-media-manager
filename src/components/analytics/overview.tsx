@@ -54,6 +54,19 @@ const timeRanges = [
   { value: '90d', label: 'Last 90 days' },
 ]
 
+// Update the types for the database responses
+type PostCountData = {
+  date: string
+  count: number
+}
+
+type MetricsData = {
+  date: string
+  sum_engagement: number
+  sum_reach: number
+  avg_engagement_rate: number
+}
+
 export function AnalyticsOverview() {
   const [timeRange, setTimeRange] = useState('30d')
   const [analytics, setAnalytics] = useState<Analytics[]>([])
@@ -67,7 +80,10 @@ export function AnalyticsOverview() {
 
   async function fetchAnalytics() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      setLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) throw new Error('Authentication error')
       if (!user) throw new Error('User not found')
 
       // Calculate date range
@@ -75,31 +91,76 @@ export function AnalyticsOverview() {
       const startDate = new Date()
       startDate.setDate(endDate.getDate() - parseInt(timeRange))
 
+      // Fetch analytics data with a simpler query
       const { data, error } = await supabase
         .from('post_analytics')
         .select(`
           date,
-          total_posts:posts(count),
-          total_engagement:sum(likes + comments + shares),
-          total_reach:sum(reach),
-          engagement_rate:avg(engagement_rate)
+          post_id,
+          likes,
+          comments,
+          shares,
+          reach,
+          engagement_rate
         `)
+        .eq('user_id', user.id)
         .gte('date', startDate.toISOString())
         .lte('date', endDate.toISOString())
         .order('date', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase query error:', error)
+        throw new Error(error.message)
+      }
+
+      // Handle empty data case
+      if (!data || data.length === 0) {
+        setAnalytics([])
+        return
+      }
+
+      // Group data by date
+      const groupedData = data.reduce((acc, curr) => {
+        const date = curr.date.split('T')[0] // Get just the date part
+        if (!acc[date]) {
+          acc[date] = {
+            posts: new Set(),
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            reach: 0,
+            engagement_rate: 0
+          }
+        }
+        acc[date].posts.add(curr.post_id)
+        acc[date].likes += curr.likes || 0
+        acc[date].comments += curr.comments || 0
+        acc[date].shares += curr.shares || 0
+        acc[date].reach += curr.reach || 0
+        acc[date].engagement_rate += curr.engagement_rate || 0
+        return acc
+      }, {} as Record<string, any>)
+
+      // Transform grouped data to match schema
+      const transformedData = Object.entries(groupedData).map(([date, metrics]) => ({
+        date,
+        total_posts: metrics.posts.size,
+        total_engagement: metrics.likes + metrics.comments + metrics.shares,
+        total_reach: metrics.reach,
+        engagement_rate: metrics.engagement_rate / metrics.posts.size || 0
+      }))
 
       // Validate data with zod
-      const validatedData = z.array(analyticsSchema).parse(data)
+      const validatedData = z.array(analyticsSchema).parse(transformedData)
       setAnalytics(validatedData)
     } catch (error) {
       console.error('Error fetching analytics:', error)
       toast({
-        title: "Error",
-        description: "Failed to fetch analytics data",
+        title: "Error fetching analytics",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
+      setAnalytics([]) // Set empty array on error
     } finally {
       setLoading(false)
     }

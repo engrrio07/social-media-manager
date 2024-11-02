@@ -48,6 +48,7 @@ export function EngagementMetrics({ userId }: EngagementMetricsProps) {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+  const [timeRange, setTimeRange] = useState('7d')
 
   useEffect(() => {
     if (userId) {
@@ -57,8 +58,13 @@ export function EngagementMetrics({ userId }: EngagementMetricsProps) {
 
   async function fetchEngagementData() {
     if (!userId) return
-    
+
     try {
+      setLoading(true)
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(endDate.getDate() - parseInt(timeRange))
+      
       const { data, error } = await supabase
         .from('post_analytics')
         .select(`
@@ -75,16 +81,23 @@ export function EngagementMetrics({ userId }: EngagementMetricsProps) {
 
       if (error) throw error
 
+      // Handle empty data case
+      if (!data || data.length === 0) {
+        setEngagementData([])
+        return
+      }
+
       // Validate data
       const validatedData = z.array(engagementSchema).parse(data)
       setEngagementData(validatedData)
     } catch (error) {
       console.error('Error fetching engagement data:', error)
       toast({
-        title: "Error",
-        description: "Failed to fetch engagement data",
+        title: "Error fetching engagement data",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       })
+      setEngagementData([]) // Set empty array on error
     } finally {
       setLoading(false)
     }
